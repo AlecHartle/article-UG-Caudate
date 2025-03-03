@@ -1,2 +1,2 @@
 # article-UG-Caudate
-Behavioral and neural data with relevant code will be made available pending publication.
+This repository will contain the behavioral and neural data with relevant code pending publication.
