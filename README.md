@@ -1,2 +1,2 @@
 # article-UG-Caudate
-This repository will contain the behavioral and neural data with relevant code pending publication.
+This repository contains the behavioral and neural data and code to generate the main and supplemenary statistics and figures.
