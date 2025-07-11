@@ -482,16 +482,7 @@ anova(model_DA, ddf = "Kenward-Roger")
 # PatientType         202.56  202.56     1  18.52  0.7566 0.39553  
 # PEtype:PatientType  681.50  681.50     1 558.31  2.5455 0.11117 
 
-##########--------------------------------------------------------------------Neural Model ID: N-M5 Noradrenaline
-model <- lmer(AUCNE ~ PEtype *PatientType + (1 | subjectNum) , data = dat)
-anova(model, ddf = "Kenward-Roger")
-# Type III Analysis of Variance Table with Kenward-Roger's method
-#                    Sum Sq Mean Sq NumDF  DenDF F value Pr(>F)
-# PEtype              42.57   42.57     1 529.91  0.1546 0.6944
-# PatientType        454.58  454.58     1  19.38  1.6504 0.2140
-# PEtype:PatientType 414.47  414.47     1 529.91  1.5048 0.2205
-
-##########--------------------------------------------------------------------Neural Model ID: N-M6 Serotonin
+##########--------------------------------------------------------------------Neural Model ID: N-M5 Serotonin
 model <- lmer(AUC5HT ~ factor(PEtype) *PatientType + (1 | subjectNum) , data = dat)
 anova(model, ddf = "Kenward-Roger")
 # Type III Analysis of Variance Table with Kenward-Roger's method
@@ -508,6 +499,17 @@ pairs(emmeans(model, ~  factor(PEtype)*PatientType,at = list(PEtype = 1), lmer.d
 pairs(emmeans(model, ~  PEtype*PatientType,at = list(PEtype = 2), lmer.df = "satterthwaite",adjust = "bonferroni"))
 # contrast                                    estimate   SE   df t.ratio p.value
 # PEtype2 PatientType1 - PEtype2 PatientType2    0.809 2.03 36.7   0.398  0.6929
+
+##########--------------------------------------------------------------------Neural Model ID: N-M6 Noradrenaline
+model <- lmer(AUCNE ~ PEtype *PatientType + (1 | subjectNum) , data = dat)
+anova(model, ddf = "Kenward-Roger")
+# Type III Analysis of Variance Table with Kenward-Roger's method
+#                    Sum Sq Mean Sq NumDF  DenDF F value Pr(>F)
+# PEtype              42.57   42.57     1 529.91  0.1546 0.6944
+# PatientType        454.58  454.58     1  19.38  1.6504 0.2140
+# PEtype:PatientType 414.47  414.47     1 529.91  1.5048 0.2205
+
+
 
 ##########--------------------------------------------------------------------Supplementary Table 3 | Medication status
 

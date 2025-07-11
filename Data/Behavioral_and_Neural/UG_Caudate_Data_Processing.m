@@ -7,14 +7,15 @@ clear all, close all, clc
 UG_Caudate_Raw_Data_path = '';
 fpath = UG_Caudate_Raw_Data_path;
 load(fpath);
+%% 
 
 %%%% the function shadedErrorBar is used for plotting timeseries neurotransmitter
 %%%% estimates and must be added for plots to work. https://github.com/raacampbell/shadedErrorBar
-shadedErrorBar_path = '';
+shadedErrorBar_path = '/Users/howe-user/Downloads/shadedErrorBar-master';
 addpath(shadedErrorBar_path)
 
 %%%%save path for table to be used in R studio
-save_path ='';
+save_path ='/Users/howe-user/Downloads';
 save_filename = 'UG_Caudate_Table_R'; 
 full_path = fullfile(save_path, sprintf('%s.csv', save_filename));  % Combine file path and file name
 %% Windows for smoothing, zscoring, AUC
@@ -573,98 +574,137 @@ end
 
 UG_data = [ET_data ; PD_data];
 %% find mean AUC for DA, NA and 5HT for Pos/Neg NPE per subject
-nET     = 6;
-nPD     = 13;
-
-ET_data = UG_data(UG_data(:,2) == 1, :);
-
+ET_data = UG_data(UG_data(:,2)==1,:);
 ET_data_PE = zeros(nET,6);
 for n = 1:nET
-    ET_data_PE(n,1) = mean(ET_data(ET_data((((n-1)*30)+1):(n*30),3)==1,4),'omitnan');
-    ET_data_PE(n,2) = mean(ET_data(ET_data((((n-1)*30)+1):(n*30),3)==2,4),'omitnan');
-    ET_data_PE(n,3) = mean(ET_data(ET_data((((n-1)*30)+1):(n*30),3)==1,5),'omitnan');
-    ET_data_PE(n,4) = mean(ET_data(ET_data((((n-1)*30)+1):(n*30),3)==2,5),'omitnan');
-    ET_data_PE(n,5) = mean(ET_data(ET_data((((n-1)*30)+1):(n*30),3)==1,6),'omitnan');
-    ET_data_PE(n,6) = mean(ET_data(ET_data((((n-1)*30)+1):(n*30),3)==2,6),'omitnan');
-
+    PE_dat_tmp = ET_data((((n-1)*30)+1):(n*30),:);
+    ET_data_PE(n,1) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==1,4),'omitnan');
+    ET_data_PE(n,2) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==2,4),'omitnan');
+    ET_data_PE(n,3) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==1,5),'omitnan');
+    ET_data_PE(n,4) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==2,5),'omitnan');
+    ET_data_PE(n,5) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==1,6),'omitnan');
+    ET_data_PE(n,6) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==2,6),'omitnan');
 end
 
-PD_data = UG_data(UG_data(:,2) == 2, :);
 
+PD_data = UG_data(UG_data(:,2)==2,:);
 PD_data_PE = zeros(nPD,6);
+PD_data_AR = zeros(nPD,6);
 for n = 1:nPD
-    PD_data_PE(n,1) = mean(PD_data(PD_data((((n-1)*30)+1):(n*30),3)==1,4),'omitnan');
-    PD_data_PE(n,2) = mean(PD_data(PD_data((((n-1)*30)+1):(n*30),3)==2,4),'omitnan');
-    PD_data_PE(n,3) = mean(PD_data(PD_data((((n-1)*30)+1):(n*30),3)==1,5),'omitnan');
-    PD_data_PE(n,4) = mean(PD_data(PD_data((((n-1)*30)+1):(n*30),3)==2,5),'omitnan');
-    PD_data_PE(n,5) = mean(PD_data(PD_data((((n-1)*30)+1):(n*30),3)==1,6),'omitnan');
-    PD_data_PE(n,6) = mean(PD_data(PD_data((((n-1)*30)+1):(n*30),3)==2,6),'omitnan');
-
+    
+    PE_dat_tmp = PD_data((((n-1)*30)+1):(n*30),:);
+    
+    PD_data_PE(n,1) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==1,4),'omitnan');
+    PD_data_PE(n,2) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==2,4),'omitnan');
+    PD_data_PE(n,3) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==1,5),'omitnan');
+    PD_data_PE(n,4) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==2,5),'omitnan');
+    PD_data_PE(n,5) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==1,6),'omitnan');
+    PD_data_PE(n,6) = mean(PE_dat_tmp(PE_dat_tmp(:,3)==2,6),'omitnan');
 end
 
-%% Compute SVD based on mean AUC data
+%%%% Compute SVD based on mean AUC data
 
 PE_svd_dat = [ET_data_PE ; PD_data_PE];
-[u,s,v]    = svd(PE_svd_dat,0);
-vt         = v';
 
-%% Variance Explained by Each SV Supplementary Table 6
-singular_vals = diag(s);                  
-explained_var = singular_vals.^2;        
-explained_var_ratio = explained_var / sum(explained_var);  
-explained_var_percent = 100 * explained_var_ratio;
+PE_deltas = [PE_svd_dat(:,1)-PE_svd_dat(:,2) , PE_svd_dat(:,3)-PE_svd_dat(:,4) , PE_svd_dat(:,5)-PE_svd_dat(:,6)];
 
-%% Logistic classifier analysis to predict ET/PD class from SVs
+%% 
+%%%%%% Logistic classifier analysis to predict ET/PD class from SVs
+tic
 niters = 10000;
+auc_or_deltas = 'auc'; % 'auc' = 6-vector of NT NPE AUCs; 'deltas' = 3-vector of NT (Pos - Neg) NPE AUCs
+sv_or_nt = 'nt';       % 'sv' = use singular vectors to train logistic classifier; 'nt' = use NT AUCs to train logistic classifier
 
-model_idx_single(1:6,1) = 1:6; 
-model_idx_single(1:6,2) = zeros(6,1);
+switch auc_or_deltas
+    case 'auc'
+        
+        % define all models for combinations of the 6 NPE AUC variables
+        model_idx_single = [];
+        model_idx_paired = [];
+        
+        model_idx_single(1:6,1)   = 1:6; 
+        model_idx_single(1:6,2:6) = zeros(6,5);
+        
+        model_idx_paired(1:5,1)   = ones(5,1);   model_idx_paired(1:5,2)   = 2:6; model_idx_paired(1:5,3:6)   = zeros(5,4);
+        model_idx_paired(6:9,1)   = 2*ones(4,1); model_idx_paired(6:9,2)   = 3:6; model_idx_paired(6:9,3:6)   = zeros(4,4);
+        model_idx_paired(10:12,1) = 3*ones(3,1); model_idx_paired(10:12,2) = 4:6; model_idx_paired(10:12,3:6) = zeros(3,4);
+        model_idx_paired(13:14,1) = 4*ones(2,1); model_idx_paired(13:14,2) = 5:6; model_idx_paired(13:14,3:6) = zeros(2,4);
+        model_idx_paired(15,1)    = 5;           model_idx_paired(15,2)    = 6;   model_idx_paired(15,3:6)    = zeros(1,4);
+        
+               model_idx = [model_idx_single ; model_idx_paired];
+        AUC_perm  = zeros(size(model_idx,1),niters); 
 
-model_idx_paired(1:5,1)   = ones(5,1);   model_idx_paired(1:5,2)   = 2:6;
-model_idx_paired(6:9,1)   = 2*ones(4,1); model_idx_paired(6:9,2)   = 3:6;
-model_idx_paired(10:12,1) = 3*ones(3,1); model_idx_paired(10:12,2) = 4:6;
-model_idx_paired(13:14,1) = 4*ones(2,1); model_idx_paired(13:14,2) = 5:6;
-model_idx_paired(15,1)    = 5;           model_idx_paired(15,2)    = 6;
+        svd_reg_results = zeros(size(model_idx,1),2);
+        
+        % do SVD
+        y              = categorical([ones(nET,1) ; zeros(nPD,1)]);  % ET = 1 , PD = 0;
+        idx_tmp        = 1:nParticipants;
+        PE_svd_dat_tmp = PE_svd_dat(idx_tmp,:);
+        [u,s,v]        = svd(PE_svd_dat_tmp,0);
 
-model_idx = [model_idx_single ; model_idx_paired];
-AUC_perm  = zeros(size(model_idx,1),niters); 
 
-svd_reg_results = zeros(size(model_idx,1),2);
+    case 'deltas'
 
-% do SVD
-PE_svd_dat     = [ET_data_PE ; PD_data_PE];
-y              = [ones(nET,1) ; zeros(nPD,1)];  % ET = 1 , PD = 0;
-idx_tmp        = 1:nParticipants;
-PE_svd_dat_tmp = PE_svd_dat(idx_tmp,:);
-[u,s,v]        = svd(PE_svd_dat_tmp,0);
+        % define all models for combinations of the 3 NPE 'delta' variables  
+        model_idx_single(1:3,1) = 1:3; 
+        model_idx_single(1:3,2) = zeros(3,1);
+        model_idx_paired(1:2,1) = ones(2,1);   model_idx_paired(1:2,2) = 2:3;
+        model_idx_paired(3,1)   = 2*ones(1,1); model_idx_paired(3,2)   = 3;
+        
+        model_idx = [model_idx_single ; model_idx_paired];
+        AUC_perm  = zeros(size(model_idx,1),niters); 
+
+        svd_reg_results = zeros(size(model_idx,1),2);
+        
+        % do SVD
+        y              = categorical([ones(nET,1) ; zeros(nPD,1)]);  % ET = 1 , PD = 0;
+        idx_tmp        = 1:nParticipants;
+        PE_svd_dat_tmp = PE_deltas(idx_tmp,:);
+        [u,s,v]        = svd(PE_svd_dat_tmp,0);
+
+        mdl_pars = zeros(size(PE_svd_dat_tmp,2),size(model_idx,1));
+
+end
+
 
 % do svd regression and permutation tests for each model
 for m = 1:size(model_idx,1)
 
     idxs_tmp = model_idx(m,:);
     idxs     = idxs_tmp(idxs_tmp ~= 0);
-    x        = u(:,idxs);
+    switch sv_or_nt
+        case 'sv'
+            x = u(:,idxs);
+        case 'nt'
+            x = PE_svd_dat_tmp(:,idxs);
+    end
 
     disp(['Permutation test model ' num2str(m) ' / ' num2str(size(model_idx,1)) ' , SV(s): ' num2str(idxs) ])
 
     Log_ET_PD        = fitglm(x,y,'Distribution','binomial','Link','logit','LikelihoodPenalty','jeffreys-prior');
+    % Log_ET_PD        = fitglm(x,y,'Distribution','binomial','Link','logit');
     score_log        = Log_ET_PD.Fitted.Probability;
-    [~,~,~,AUC(m,1)] = perfcurve(y,score_log,1);
+    % [xperf(:,m),yperf(:,m),~,AUC(m,1),optrocpt(m,1:2),~,~] = perfcurve(y,score_log,1);
+    [xperf(:,m),yperf(:,m),~,AUC(m,1)] = perfcurve(y,score_log,1);
+    mdl_pars(1:numel(idxs)+1,m) = Log_ET_PD.Coefficients.Estimate;
 
-    for i = 1:niters    
+    parfor i = 1:niters    
         if mod(i,10000) == 0
             disp(['iteration ' num2str(i) ' / ' num2str(niters)])
         end
         perm_idx              = randperm(numel(y));
         ytmp                  = y(perm_idx);
         Log_ET_PD_iter        = fitglm(x,ytmp,'Distribution','binomial','Link','logit','LikelihoodPenalty','jeffreys-prior');
+        % Log_ET_PD_iter        = fitglm(x,ytmp,'Distribution','binomial','Link','logit');
         score_log             = Log_ET_PD_iter.Fitted.Probability;
+        % [xperfiter(:,i),yperfiter(:,i),~,AUC_perm(m,i)] = perfcurve(ytmp,score_log,1);
         [~,~,~,AUC_perm(m,i)] = perfcurve(ytmp,score_log,1);
     end
 
     svd_reg_results(m,1) = AUC(m,1);
     svd_reg_results(m,2) = sum(AUC_perm(m,:)>=AUC(m,1))/niters;
 end
+toc
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%Plotting
 ET_color = [80, 233, 145]/ 255;
@@ -833,166 +873,7 @@ xlim(xlimit)
 
 hold off
 
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%Plotting  Figure 2g SVD Score
 
-fig = figure; 
-hold on
-for i = 1:nParticipants
-    if i == 1 || i == 4 || i == 5 || i == 6
-        bar([zeros(1,i-1) u(i,5) zeros(1,nParticipants-i)],'FaceColor',ET_color,'EdgeColor','k','FaceAlpha',mkralpha)
-    elseif i == 2 || i == 3
-        bar([zeros(1,i-1) u(i,5) zeros(1,nParticipants-i)],'FaceColor',ET_color,'EdgeColor','k','FaceAlpha',mkralpha)
-    elseif i == 16 || i == 18 || i == 19
-        bar([zeros(1,i-1) u(i,5) zeros(1,nParticipants-i)],'FaceColor',PD_color,'EdgeColor','k', 'FaceAlpha',mkralpha)
-    else
-        bar([zeros(1,i-1) u(i,5) zeros(1,nParticipants-i)],'FaceColor',PD_color,'EdgeColor','k', 'FaceAlpha',mkralpha)
-    end
-end
-
-set(gca,'FontSize',24)
-ylabel('SV 5 Score')
-xticklabels([])
-xlabel('Patient')
-
-hold off
-
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%Plotting  Figure 2h SVD Weight
-
-fig = figure; 
-hold on
-bar([vt(5,1:2) , zeros(1,4)],'FaceColor','black')
-bar([zeros(1,2) , vt(5,3:4) , zeros(1,2)],'FaceColor','cyan')
-bar([zeros(1,4) , vt(5,5:6)],'FaceColor','magenta')
-xticks(1:6)
-xticklabels({'Pos','Neg','Pos','Neg','Pos','Neg'})
-ylabel('SV 5 weight')
-set(gca,'FontSize',24)
-
-hold off
-
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%Plotting  Figure 2i SVD 3D hyperplane defined by right singular vectors 1, 2, and 5
-
-mkrsize = 30;
-u_idxs = [1 2 5];
-y = [ones(nET,1) ; -1*ones(nPD,1)];     
-x = [u(:,u_idxs) , ones(size(u,1),1)];
-w = (x' * x) \ (x' * y);
-w1 = w(1); w2 = w(2); w3 = w(3); b = w(4);
-[x1grid,x2grid] = meshgrid(linspace(min(x(:,1)),max(x(:,1)),30),linspace(min(x(:,2)),max(x(:,2)),30));
-x3grid = -((w1 * x1grid) + (w2 * x2grid) + b) / w3;
-
-
-fig = figure
-set(gcf,'color','w')
-hold on
-for i = 1:6
-    hold on
-        scatter3(u(i,1),u(i,2),u(i,5),mkrsize,'filled','MarkerFaceColor',ET_color,'MarkerEdgeColor','k','MarkerFaceAlpha',mkralpha,'HandleVisibility','off')
-end
-
-for i = 1:13
-    hold on
-        scatter3(u(i+nET,1),u(i+nET,2),u(i+nET,5),mkrsize,'filled','MarkerFaceColor',PD_color,'MarkerEdgeColor','k','MarkerFaceAlpha',mkralpha,'HandleVisibility','off')
-
-end
-C = zeros(size(x1grid,1),size(x1grid,1),3);
-C(:,:,1) = 0.43*ones(size(x1grid,1)); C(:,:,2) = 0.42*ones(size(x1grid,1)) ; C(:,:,3) = 0.64*ones(size(x1grid,1));
-surf(x1grid,x2grid,x3grid,C,'FaceAlpha',0.5,'EdgeColor','none')
-xlabel('SV1')
-ylabel('SV2')
-zlabel('SV5')
-fig.Units = 'inches';
-fig.Position(3) = 2.3;  
-fig.Position(4) = 1.8562; 
-ax = gca;
-ax.FontName = 'Arial';
-ax.FontSize = 8; 
-ax.LineWidth = 1; 
-ax.Title.FontName = 'Arial';
-ax.Title.FontSize = 9; 
-view(38.3937,11.5115)
-grid on
-
-hold off
-
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%Plotting  Figure 2j Mean DA Pos/Neg per subject
-
-
-set(gcf,'color','w')
-fs = 20;
-ylims = [-6 6];
-xlims = [-12 12];
-mkrsize = 300;
-mkralpha = 0.7;
-
-fig = figure;
-hold on
-line([xlims(1) xlims(2)],[0 0],'LineWidth',1,'Color',[.5 .5 .5],'HandleVisibility','off')
-line([0 0],[ylims(1) ylims(2)],'LineWidth',1,'Color',[.5 .5 .5],'HandleVisibility','off')
-for i = 1:nET
-    hold on
-        scatter(ET_data_PE(i,1),ET_data_PE(i,2),mkrsize,'filled','MarkerFaceColor',ET_color,'MarkerEdgeColor','k','MarkerFaceAlpha',mkralpha,'HandleVisibility','off')
-    end
-for i = 1:nPD
-    hold on
-        scatter(PD_data_PE(i,1),PD_data_PE(i,2),mkrsize,'filled','MarkerFaceColor',PD_color,'MarkerEdgeColor','k','MarkerFaceAlpha',mkralpha,'HandleVisibility','off')
-    end
-
-set(gca,'FontSize',fs)
-xlabel('Mean DA AUC, Positive NPE')
-ylabel('Mean DA AUC, Negative NPE')
-axis square
-ylim(ylims)
-xlim(xlims)
-
-hold off
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%Plotting  Figure 2k Mean NA Pos/Neg per subject
-
-fig = figure;
-hold on
-line([xlims(1) xlims(2)],[0 0],'LineWidth',1,'Color',[.5 .5 .5],'HandleVisibility','off')
-line([0 0],[ylims(1) ylims(2)],'LineWidth',1,'Color',[.5 .5 .5],'HandleVisibility','off')
-for i = 1:6
-    hold on
-        scatter(ET_data_PE(i,3),ET_data_PE(i,4),mkrsize,'filled','MarkerFaceColor',ET_color,'MarkerEdgeColor','k','MarkerFaceAlpha',mkralpha,'HandleVisibility','off')
-end
-for i = 1:13
-    hold on
-        scatter(PD_data_PE(i,3),PD_data_PE(i,4),mkrsize,'filled','MarkerFaceColor',PD_color,'MarkerEdgeColor','k','MarkerFaceAlpha',mkralpha,'HandleVisibility','off')
-
-end
-set(gca,'FontSize',fs)
-xlabel('Mean NA AUC, Positive NPE')
-ylabel('Mean NA AUC, Negative NPE')
-axis square
-ylim(ylims)
-xlim(xlims)
-
-hold off
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%Plotting  Figure 2l Mean 5HT Pos/Neg per subject
-
-fig = figure; 
-hold on
-line([xlims(1) xlims(2)],[0 0],'LineWidth',1,'Color',[.5 .5 .5],'HandleVisibility','off')
-line([0 0],[ylims(1) ylims(2)],'LineWidth',1,'Color',[.5 .5 .5],'HandleVisibility','off')
-for i = 1:6
-    hold on
-        scatter(ET_data_PE(i,5),ET_data_PE(i,6),mkrsize,'filled','MarkerFaceColor',ET_color,'MarkerEdgeColor','k','MarkerFaceAlpha',mkralpha,'HandleVisibility','off')
-end
-
-for i = 1:13
-    hold on
-        scatter(PD_data_PE(i,5),PD_data_PE(i,6),mkrsize,'filled','MarkerFaceColor',PD_color,'MarkerEdgeColor','k','MarkerFaceAlpha',mkralpha,'HandleVisibility','off')
-
-end
-set(gca,'FontSize',fs)
-xlabel('Mean 5HT AUC, Positive NPE')
-ylabel('Mean 5HT AUC, Negative NPE')
-axis square
-ylim(ylims)
-xlim(xlims)
-
-hold off
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%Plotting Supplementary Figure 2a Norm Prediction Error
 
 ax = gca;
